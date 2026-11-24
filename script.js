@@ -24,13 +24,21 @@ function toast(msg) {
   toast._t = setTimeout(() => t.classList.remove('show'), 2200);
 }
 
-/* ===== واتساب ===== */
+const LS = (() => {
+  const mem = {};
+  let ok = true;
+  try { localStorage.setItem('__t', '1'); localStorage.removeItem('__t'); } catch (e) { ok = false; }
+  return {
+    get: k => (ok ? localStorage.getItem(k) : (k in mem ? mem[k] : null)),
+    set: (k, v) => { if (ok) localStorage.setItem(k, v); else mem[k] = v; },
+    del: k => { if (ok) localStorage.removeItem(k); else delete mem[k]; }
+  };
+})();
+
 $$('[data-wa]').forEach(a => (a.href = WA_URL));
 
-/* ===== طبقة التخزين: بدّل هذا الكائن بـ Firebase لاحقاً دون تغيير باقي الكود =====
-   الواجهة المطلوبة: signUp / logIn / logOut / current / getBookmarks / setBookmarks */
 const Store = {
-  _users: () => JSON.parse(localStorage.getItem('yz_users') || '{}'),
+  _users: () => JSON.parse(LS.get('yz_users') || '{}'),
   async _hash(p) {
     try {
       const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(p));
@@ -41,24 +49,24 @@ const Store = {
     const users = this._users();
     if (users[email]) throw new Error('هذا البريد مسجل بالفعل.');
     users[email] = { name, hash: await this._hash(pass) };
-    localStorage.setItem('yz_users', JSON.stringify(users));
-    localStorage.setItem('yz_session', email);
+    LS.set('yz_users', JSON.stringify(users));
+    LS.set('yz_session', email);
     return { name, email };
   },
   async logIn(email, pass) {
     const u = this._users()[email];
     if (!u || u.hash !== await this._hash(pass)) throw new Error('البريد أو كلمة المرور غير صحيحة.');
-    localStorage.setItem('yz_session', email);
+    LS.set('yz_session', email);
     return { name: u.name, email };
   },
-  logOut() { localStorage.removeItem('yz_session'); },
+  logOut() { LS.del('yz_session'); },
   current() {
-    const email = localStorage.getItem('yz_session');
+    const email = LS.get('yz_session');
     const u = email && this._users()[email];
     return u ? { name: u.name, email } : null;
   },
-  getBookmarks(email) { return JSON.parse(localStorage.getItem('yz_bm_' + email) || '[]'); },
-  setBookmarks(email, list) { localStorage.setItem('yz_bm_' + email, JSON.stringify(list)); }
+  getBookmarks(email) { return JSON.parse(LS.get('yz_bm_' + email) || '[]'); },
+  setBookmarks(email, list) { LS.set('yz_bm_' + email, JSON.stringify(list)); }
 };
 
 let user = Store.current();
@@ -159,6 +167,7 @@ $('#projects').addEventListener('click', e => {
     renderAuthUI();
     toast(list.includes(id) ? 'تم حفظ المشروع' : 'تمت إزالة المشروع من المحفوظات');
   }
+});
 
 $('#copyBtn').addEventListener('click', async () => {
   const num = $('#phone').textContent.trim();
